@@ -1,9 +1,11 @@
 package org.elasticsearch.plugin.test.BitSet;
 
+import com.google.common.io.BaseEncoding;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -16,6 +18,10 @@ import org.elasticsearch.plugins.PluginsService;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+import org.xerial.snappy.Snappy;
+
+import java.io.IOException;
+import java.util.BitSet;
 
 public class BitSetTest {
 
@@ -37,14 +43,14 @@ public class BitSetTest {
     /**
      * some productive code
      */
-    private String index(final String json, final String type) {
+    private String index(final String id, final String json, final String type) {
         // create Client
         final Settings settings = ImmutableSettings.settingsBuilder().put("cluster.name", "mycluster").build();
         final TransportClient tc = new TransportClient(settings).addTransportAddress(new InetSocketTransportAddress(
                 "localhost", 9300));
 
         // index a document
-        final IndexResponse response = tc.prepareIndex("myindex", type).setId("1235").setSource(json).execute().actionGet();
+        final IndexResponse response = tc.prepareIndex("myindex", type).setId(id).setSource(json).execute().actionGet();
         return response.getId();
     }
 
@@ -69,34 +75,26 @@ public class BitSetTest {
     }
 
     @Test
-    public void test_bitset() {
+    public void test_bitset() throws IOException {
 
         // do something with elasticsearch
-        final String json = "{\"mytype\":\"bla\"}";
-        final String type = "mytype";
-        final String id = index(json, type);
+        final String json = "{\"twitter_id\":\"123\"}";
+        final String type = "Person";
+        final String id = "123";
+        index(id,json, type);
 
         final Settings settings = ImmutableSettings.settingsBuilder().put("cluster.name", "mycluster").build();
         final TransportClient tc = new TransportClient(settings).addTransportAddress(new InetSocketTransportAddress(
                 "localhost", 9300));
 
-        SearchRequest people = tc.prepareSearch("myindex").setSource("{\n" +
-                "\"query\": {\n" +
-                "\"filtered\": {\n" +
-                "\"filter\": {\n" +
-                "\"bitset\": {\n" +
-                "\"bitset\": \"test\"\n" +
-                "}\n" +
-                "}\n" +
-                "}\n" +
-                "}").request();
+        BitSet b = new BitSet();
+        b.set(123);
+        String encode = BaseEncoding.base64().encode(Snappy.compress(b.toByteArray()));
 
-        //tc.search(people).actionGet();
+        String source = String.format("{\"query\":{\"filtered\":{\"filter\":{\"bitset\":{\"bitset\":\"%s\"}}}}}", encode);
+        SearchResponse searchResponse = tc.prepareSearch("myindex").setTypes("Person").setSource(source).execute().actionGet();
 
-        GetRequest g = tc.prepareGet("myindex", "mytype", "1235").request();
-
-        GetResponse getFields = tc.get(g).actionGet();
-        int i = 1;
+        System.out.print(searchResponse.getHits().getAt(0).getSourceAsString());
 
     }
 }
