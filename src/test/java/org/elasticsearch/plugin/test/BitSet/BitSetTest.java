@@ -19,6 +19,8 @@ import org.elasticsearch.plugins.PluginsService;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+import org.roaringbitmap.buffer.ImmutableRoaringBitmap;
+import org.roaringbitmap.buffer.MutableRoaringBitmap;
 import org.xerial.snappy.Snappy;
 
 import java.io.ByteArrayOutputStream;
@@ -93,11 +95,17 @@ public class BitSetTest {
         final TransportClient tc = new TransportClient(settings).addTransportAddress(new InetSocketTransportAddress(
                 "localhost", 9300));
 
-        BitSet b = new BitSet();
+        MutableRoaringBitmap b = MutableRoaringBitmap.bitmapOf();
         for(String id : ids) {
-            b.set(Integer.valueOf(id));
+            b.add(Integer.valueOf(id));
         }
-        String encode = BaseEncoding.base64().encode(Snappy.compress(b.toByteArray()));
+
+        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+        DataOutputStream dos = new DataOutputStream(bos);
+        b.serialize(dos);
+        dos.close();
+
+        String encode = BaseEncoding.base64().encode(Snappy.compress(bos.toByteArray()));
 
         GetResponse getFields = tc.prepareGet("myindex", "Person", "10").execute().actionGet();
 

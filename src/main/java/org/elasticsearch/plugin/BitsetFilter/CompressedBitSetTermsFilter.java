@@ -10,73 +10,55 @@ import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
+import org.roaringbitmap.IntIterator;
+import org.roaringbitmap.buffer.ImmutableRoaringBitmap;
 import org.xerial.snappy.Snappy;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.BitSet;
 import java.util.List;
 
 public class CompressedBitSetTermsFilter extends Filter {
-    private BitSet bitSet;
+    private ImmutableRoaringBitmap bitSet;
 
     public CompressedBitSetTermsFilter(String base64Compressed) {
-        BitSet bs;
+        ImmutableRoaringBitmap bs;
+
+        ByteBuffer bb = null;
         try {
-            bs = BitSet.valueOf(Snappy.uncompress(BaseEncoding.base64().decode(base64Compressed)));
+            bb = ByteBuffer.wrap(Snappy.uncompress(BaseEncoding.base64().decode(base64Compressed)));
         } catch (IOException e) {
-            bs = new BitSet();
+            bb = ByteBuffer.allocate(0);
         }
+
+        bs = new ImmutableRoaringBitmap(bb);
 
         this.bitSet = bs;
     }
 
     @Override
     public DocIdSet getDocIdSet(AtomicReaderContext context, Bits acceptDocs) throws IOException {
-        List<String> ids = Lists.newArrayList();
-        int i = bitSet.nextSetBit(0);
-
-        List<FixedBitSet> docs = Lists.newArrayList();
-
-        if (i != -1) {
-            ids.add(String.valueOf(i));
-            for (i = bitSet.nextSetBit(i + 1); i >= 0; i = bitSet.nextSetBit(i + 1)) {
-                int endOfRun = bitSet.nextClearBit(i);
-                do {
-                    ids.add(String.valueOf(i));
-                    FixedBitSet result = search(context, acceptDocs, ids);
-                    if (null != result) {
-                        docs.add(result);
-                    }
-
-                    ids.clear();
-                }
-                while (++i < endOfRun);
-            }
-
-            if (!ids.isEmpty()) {
-                FixedBitSet result = search(context, acceptDocs, ids);
-                if (null != result) {
-                    docs.add(result);
-                }
-                ids.clear();
+        List<Integer> ids = Lists.newArrayList();
+        IntIterator intIterator = bitSet.getIntIterator();
+        if (intIterator.hasNext()) {
+            ids.add(intIterator.next());
+            while (intIterator.hasNext()) {
+                ids.add(intIterator.next());
             }
         }
 
-        if (!docs.isEmpty()) {
-            FixedBitSet result = new FixedBitSet(0);
-            for (FixedBitSet bs : docs) {
-                result = FixedBitSet.ensureCapacity(result, bs.length());
-                result.or(bs);
-            }
-
-            return result;
+        FixedBitSet result;
+        if (!ids.isEmpty()) {
+             result = search(context, acceptDocs, ids);
         } else {
-            return new FixedBitSet(0);
+            result = null;
         }
 
+        return result;
     }
 
-    private FixedBitSet search(AtomicReaderContext context, Bits acceptDocs, List<String> ids) {
+    private FixedBitSet search(AtomicReaderContext context, Bits acceptDocs, List<Integer> ids) {
         TermsFilter filter = new TermsFilter(UidFieldMapper.NAME, Uid.createTypeUids(Lists.newArrayList("Person"), ids));
 
         FixedBitSet result;
