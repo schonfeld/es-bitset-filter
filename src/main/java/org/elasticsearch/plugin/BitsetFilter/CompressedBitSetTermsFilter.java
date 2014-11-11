@@ -1,7 +1,6 @@
 package org.elasticsearch.plugin.BitsetFilter;
 
 import com.google.common.collect.Lists;
-import com.google.common.io.BaseEncoding;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.queries.TermsFilter;
 import org.apache.lucene.search.DocIdSet;
@@ -12,29 +11,18 @@ import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.roaringbitmap.IntIterator;
 import org.roaringbitmap.buffer.ImmutableRoaringBitmap;
-import org.xerial.snappy.Snappy;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.util.BitSet;
+import java.util.Collection;
 import java.util.List;
 
 public class CompressedBitSetTermsFilter extends Filter {
     private ImmutableRoaringBitmap bitSet;
+    private Collection<String> types;
 
-    public CompressedBitSetTermsFilter(String base64Compressed) {
-        ImmutableRoaringBitmap bs;
-
-        ByteBuffer bb = null;
-        try {
-            bb = ByteBuffer.wrap(Snappy.uncompress(BaseEncoding.base64().decode(base64Compressed)));
-        } catch (IOException e) {
-            bb = ByteBuffer.allocate(0);
-        }
-
-        bs = new ImmutableRoaringBitmap(bb);
-
-        this.bitSet = bs;
+    public CompressedBitSetTermsFilter(Collection<String> types, ImmutableRoaringBitmap bitmap) {
+        this.bitSet = bitmap;
+        this.types = types;
     }
 
     @Override
@@ -59,7 +47,7 @@ public class CompressedBitSetTermsFilter extends Filter {
     }
 
     private FixedBitSet search(AtomicReaderContext context, Bits acceptDocs, List<Integer> ids) {
-        TermsFilter filter = new TermsFilter(UidFieldMapper.NAME, Uid.createTypeUids(Lists.newArrayList("Person"), ids));
+        TermsFilter filter = new TermsFilter(UidFieldMapper.NAME, Uid.createTypeUids(types, ids));
 
         FixedBitSet result;
         try {

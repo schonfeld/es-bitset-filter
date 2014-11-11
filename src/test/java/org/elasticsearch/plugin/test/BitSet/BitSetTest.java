@@ -1,8 +1,11 @@
 package org.elasticsearch.plugin.test.BitSet;
 
 import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import com.google.common.io.BaseEncoding;
+import org.apache.lucene.queries.TermsFilter;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexResponse;
@@ -13,6 +16,9 @@ import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeBuilder;
@@ -28,9 +34,7 @@ import org.xerial.snappy.Snappy;
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
-import java.util.BitSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 public class BitSetTest {
 
@@ -52,14 +56,20 @@ public class BitSetTest {
     /**
      * some productive code
      */
-    private String index(final String id, final String json, final String type) {
+    private String index(final String id, final String type, final Map<String,Object> data) {
         // create Client
         final Settings settings = ImmutableSettings.settingsBuilder().put("cluster.name", "mycluster").build();
         final TransportClient tc = new TransportClient(settings).addTransportAddress(new InetSocketTransportAddress(
                 "localhost", 9300));
 
         // index a document
-        final IndexResponse response = tc.prepareIndex("myindex", type).setId(id).setSource(json).setRefresh(true).execute().actionGet();
+        final IndexResponse response = tc.prepareIndex("myindex", type)
+                .setId(id)
+                .setRefresh(true)
+                .setSource(data)
+                .execute()
+                .actionGet();
+
         return response.getId();
     }
 
@@ -77,9 +87,28 @@ public class BitSetTest {
 
     private void createIndex() {
         try {
-            this.client.admin().indices().prepareCreate("myindex").setSettings(ImmutableSettings.settingsBuilder().put("number_of_shards", 3).put("number_of_replicas", "0")).execute().actionGet();
+            this.client.admin().indices()
+                    .prepareCreate("myindex")
+                    .setSettings(
+                            ImmutableSettings.settingsBuilder()
+                                    .put("number_of_shards", 3)
+                                    .put("number_of_replicas", "0"))
+                    .execute()
+                    .actionGet();
+
+            XContentBuilder mapping = XContentFactory.jsonBuilder().startObject()
+                    .startObject("properties")
+                        //.startObject("followers_bitmap").field("type", "binary").endObject()
+                    .endObject();
+
+            PutMappingRequest putMappingRequest = new PutMappingRequest("myindex");
+            putMappingRequest.type("Person");
+            putMappingRequest.source(mapping);
+            this.client.admin().indices().putMapping(putMappingRequest);
         } catch (final IndexAlreadyExistsException e) {
             // index already exists => we ignore this exception
+        } catch (IOException e) {
+            e.printStackTrace();
         }
     }
 
@@ -90,8 +119,9 @@ public class BitSetTest {
         // do something with elasticsearch
         Set<String> ids = Sets.newHashSet("10", "20", "30");
         for(String id : ids) {
-            String json = String.format("{\"twitter_id\":\"%s\"}", id);
-            index(id, json, type);
+            Map data = Maps.newHashMap();
+            data.put("twitter_id", id);
+            index(id, type, data);
         }
 
         final Settings settings = ImmutableSettings.settingsBuilder().put("cluster.name", "mycluster").build();
@@ -108,11 +138,12 @@ public class BitSetTest {
         b.serialize(dos);
         dos.close();
 
-        String encode = BaseEncoding.base64().encode(Snappy.compress(bos.toByteArray()));
+        Map data = Maps.newHashMap();
+        data.put("twitter_id", "master");
+        data.put("followers_bitmap", BaseEncoding.base64().encode(Snappy.compress(bos.toByteArray())));
+        index("master", "Person", data);
 
-        GetResponse getFields = tc.prepareGet("myindex", "Person", "10").execute().actionGet();
-
-        String source = String.format("{\"query\":{\"filtered\":{\"filter\":{\"bitset\":{\"bitset\":\"%s\"}}}}}", encode);
+        String source = "{\"query\":{\"filtered\":{\"filter\":{\"bitset\":{\"index\":\"myindex\",\"type\":\"Person\",\"id\":\"master\",\"field\":\"followers_bitmap\"}}}}}";
         SearchResponse searchResponse = tc.prepareSearch("myindex").setTypes("Person").setSource(source).execute().actionGet();
 
         assert(searchResponse.getHits().getHits().length == 3);
