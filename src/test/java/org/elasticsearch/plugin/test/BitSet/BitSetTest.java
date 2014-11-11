@@ -19,6 +19,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentGenerator;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.IndexAlreadyExistsException;
@@ -69,11 +71,26 @@ public class BitSetTest {
         final TransportClient tc = new TransportClient(settings).addTransportAddress(new InetSocketTransportAddress(
                 "localhost", 9300));
 
+        // turn the data into XContentBuilder
+        XContentBuilder builder = null;
+        try {
+            builder = XContentFactory.contentBuilder(XContentType.SMILE);
+            builder.startObject();
+
+            for(String key : data.keySet()) {
+                builder.field(key, data.get(key));
+            }
+
+            builder.endObject();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
         // index a document
         final IndexResponse response = tc.prepareIndex(INDEX, TYPE)
                 .setId(id)
                 .setRefresh(true)
-                .setSource(data)
+                .setSource(builder)
                 .execute()
                 .actionGet();
 

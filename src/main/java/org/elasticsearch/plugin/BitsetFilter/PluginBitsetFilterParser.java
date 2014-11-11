@@ -95,7 +95,7 @@ public class PluginBitsetFilterParser implements FilterParser {
 
         try {
             ByteBuffer bytesBuffer = ByteBuffer.wrap(
-                    Snappy.uncompress(BaseEncoding.base64().decode(bitmapFieldSource.get(fieldName).toString())));
+                    Snappy.uncompress((byte[]) bitmapFieldSource.get(fieldName)));
             ImmutableRoaringBitmap followersBitmap = new ImmutableRoaringBitmap(bytesBuffer);
 
             return followersBitmap;
