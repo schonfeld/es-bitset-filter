@@ -1,20 +1,22 @@
 package org.elasticsearch.plugin.BitsetFilter;
 
-import org.apache.lucene.index.Term;
-import org.apache.lucene.queries.TermFilter;
-import org.apache.lucene.search.DocIdSet;
+import com.google.common.io.BaseEncoding;
+import org.apache.lucene.queries.TermsFilter;
 import org.apache.lucene.search.Filter;
-import org.apache.lucene.util.DocIdBitSet;
-import org.elasticsearch.common.Base64;
+import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.query.FilterParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryParsingException;
+import org.xerial.snappy.Snappy;
 
 import java.io.IOException;
 import java.util.BitSet;
+import java.util.List;
+import java.util.logging.Logger;
 
 public class PluginBitsetFilterParser implements FilterParser {
     public static final String NAME = "bitset";
@@ -30,7 +32,7 @@ public class PluginBitsetFilterParser implements FilterParser {
 
     @Override
     public Filter parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
-        Integer input = null;
+        String input = null;
 
         XContentParser parser = parseContext.parser();
         XContentParser.Token token;
@@ -42,7 +44,7 @@ public class PluginBitsetFilterParser implements FilterParser {
                 currentFieldName = parser.currentName();
             } else if (token.isValue()) {
                 if ("bitset".equals(currentFieldName)) {
-                    input = parser.intValue();
+                    input = parser.text();
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[bitset] filter does not support [" + currentFieldName + "]");
                 }
@@ -53,15 +55,16 @@ public class PluginBitsetFilterParser implements FilterParser {
             throw new QueryParsingException(parseContext.index(), "No input was given");
         }
 
-        BitSet bitSet = new BitSet();
-        bitSet.set(input);
+        BitSet bitSet = BitSet.valueOf(Snappy.uncompress(BaseEncoding.base64().decode(input)));
 
         if(bitSet.isEmpty()) {
             throw new QueryParsingException(parseContext.index(), "Empty bitset given.");
         }
 
-        Filter filter;
-        filter = new PluginBitsetLuceneFilter(bitSet);
+        List<String> types = Lists.newArrayList("people");
+        List<String> ids = Lists.newArrayList(bitSet.toString().replace("{", "").replace("}", "").split(", "));
+
+        TermsFilter filter = new TermsFilter(UidFieldMapper.NAME, Uid.createTypeUids(types, ids));
 
         return filter;
     }

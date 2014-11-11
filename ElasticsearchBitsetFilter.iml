@@ -35,7 +35,7 @@
     <orderEntry type="library" exported="" name="Gradle: asm-commons-4.1" level="project" />
     <orderEntry type="library" exported="" name="Gradle: spatial4j-0.4.1" level="project" />
     <orderEntry type="library" exported="" name="Gradle: snappy-java-1.1.1.6" level="project" />
-    <orderEntry type="library" exported="" name="Gradle: commons-lang3-3.3.2" level="project" />
+    <orderEntry type="library" exported="" name="Gradle: guava-18.0" level="project" />
   </component>
 </module>
 
