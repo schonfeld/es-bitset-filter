@@ -1,6 +1,7 @@
 package org.elasticsearch.plugin.test.BitSet;
 
 import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 import com.google.common.io.BaseEncoding;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
@@ -16,6 +17,7 @@ import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeBuilder;
 import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.search.SearchHit;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -28,6 +30,7 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.util.BitSet;
 import java.util.List;
+import java.util.Set;
 
 public class BitSetTest {
 
@@ -85,7 +88,7 @@ public class BitSetTest {
         final String type = "Person";
 
         // do something with elasticsearch
-        List<String> ids = Lists.newArrayList("10", "20", "30");
+        Set<String> ids = Sets.newHashSet("10", "20", "30");
         for(String id : ids) {
             String json = String.format("{\"twitter_id\":\"%s\"}", id);
             index(id, json, type);
@@ -113,8 +116,13 @@ public class BitSetTest {
         SearchResponse searchResponse = tc.prepareSearch("myindex").setTypes("Person").setSource(source).execute().actionGet();
 
         assert(searchResponse.getHits().getHits().length == 3);
-        assert(searchResponse.getHits().getAt(0).getId().equals("10"));
-        assert(searchResponse.getHits().getAt(1).getId().equals("20"));
-        assert(searchResponse.getHits().getAt(2).getId().equals("30"));
+
+        //seems like for me the order is reversed, so lets create an assert that is sort agnostic
+        Set<String> resultIds = Sets.newHashSet();
+        for (SearchHit hit : searchResponse.getHits()) {
+            resultIds.add(hit.getId());
+        }
+
+        assert(ids.equals(resultIds));
     }
 }
