@@ -44,15 +44,22 @@ public class CompressedBitSetTermsFilter extends Filter {
                 do {
                     ids.add(String.valueOf(i));
                     FixedBitSet result = search(context, acceptDocs, ids);
-                    docs.add(result);
+                    if (null != result) {
+                        docs.add(result);
+                    }
+
                     ids.clear();
                 }
                 while (++i < endOfRun);
             }
 
-            FixedBitSet result = search(context, acceptDocs, ids);
-            docs.add(result);
-            ids.clear();
+            if (!ids.isEmpty()) {
+                FixedBitSet result = search(context, acceptDocs, ids);
+                if (null != result) {
+                    docs.add(result);
+                }
+                ids.clear();
+            }
         }
 
         if (!docs.isEmpty()) {
