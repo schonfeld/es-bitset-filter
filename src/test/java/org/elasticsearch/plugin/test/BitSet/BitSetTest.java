@@ -5,6 +5,7 @@ import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import com.google.common.io.BaseEncoding;
 import org.apache.lucene.queries.TermsFilter;
+import org.apache.lucene.queryparser.flexible.core.builders.QueryBuilder;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
@@ -19,9 +20,11 @@ import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.FilterBuilders;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeBuilder;
+import org.elasticsearch.plugin.BitsetFilter.PluginBitsetFilterBuilder;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.search.SearchHit;
 import org.junit.After;
@@ -31,12 +34,16 @@ import org.roaringbitmap.buffer.ImmutableRoaringBitmap;
 import org.roaringbitmap.buffer.MutableRoaringBitmap;
 import org.xerial.snappy.Snappy;
 
+import javax.management.Query;
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.util.*;
 
 public class BitSetTest {
+
+    private static final String INDEX = "myindex";
+    private static final String TYPE = "Person";
 
     private Node node;
     private Client client;
@@ -56,14 +63,14 @@ public class BitSetTest {
     /**
      * some productive code
      */
-    private String index(final String id, final String type, final Map<String,Object> data) {
+    private String index(final String id, final Map<String,Object> data) {
         // create Client
         final Settings settings = ImmutableSettings.settingsBuilder().put("cluster.name", "mycluster").build();
         final TransportClient tc = new TransportClient(settings).addTransportAddress(new InetSocketTransportAddress(
                 "localhost", 9300));
 
         // index a document
-        final IndexResponse response = tc.prepareIndex("myindex", type)
+        final IndexResponse response = tc.prepareIndex(INDEX, TYPE)
                 .setId(id)
                 .setRefresh(true)
                 .setSource(data)
@@ -88,7 +95,7 @@ public class BitSetTest {
     private void createIndex() {
         try {
             this.client.admin().indices()
-                    .prepareCreate("myindex")
+                    .prepareCreate(INDEX)
                     .setSettings(
                             ImmutableSettings.settingsBuilder()
                                     .put("number_of_shards", 3)
@@ -98,11 +105,11 @@ public class BitSetTest {
 
             XContentBuilder mapping = XContentFactory.jsonBuilder().startObject()
                     .startObject("properties")
-                        //.startObject("followers_bitmap").field("type", "binary").endObject()
+                        .startObject("followers_bitmap").field("type", "binary").endObject()
                     .endObject();
 
-            PutMappingRequest putMappingRequest = new PutMappingRequest("myindex");
-            putMappingRequest.type("Person");
+            PutMappingRequest putMappingRequest = new PutMappingRequest(INDEX);
+            putMappingRequest.type(TYPE);
             putMappingRequest.source(mapping);
             this.client.admin().indices().putMapping(putMappingRequest);
         } catch (final IndexAlreadyExistsException e) {
@@ -114,14 +121,12 @@ public class BitSetTest {
 
     @Test
     public void test_bitset() throws IOException {
-        final String type = "Person";
-
         // do something with elasticsearch
         Set<String> ids = Sets.newHashSet("10", "20", "30");
         for(String id : ids) {
             Map data = Maps.newHashMap();
             data.put("twitter_id", id);
-            index(id, type, data);
+            index(id, data);
         }
 
         final Settings settings = ImmutableSettings.settingsBuilder().put("cluster.name", "mycluster").build();
@@ -138,17 +143,20 @@ public class BitSetTest {
         b.serialize(dos);
         dos.close();
 
-        Map data = Maps.newHashMap();
+        Map<String,Object> data = Maps.newHashMap();
         data.put("twitter_id", "master");
-        data.put("followers_bitmap", BaseEncoding.base64().encode(Snappy.compress(bos.toByteArray())));
-        index("master", "Person", data);
+        data.put("followers_bitmap", Snappy.compress(bos.toByteArray()));
+        index("master", data);
 
-        String source = "{\"query\":{\"filtered\":{\"filter\":{\"bitset\":{\"index\":\"myindex\",\"type\":\"Person\",\"id\":\"master\",\"field\":\"followers_bitmap\"}}}}}";
-        SearchResponse searchResponse = tc.prepareSearch("myindex").setTypes("Person").setSource(source).execute().actionGet();
+        PluginBitsetFilterBuilder filter = new PluginBitsetFilterBuilder(INDEX, TYPE, "master", "followers_bitmap");
+        SearchResponse searchResponse = tc.prepareSearch(INDEX)
+                .setTypes(TYPE)
+                .setQuery(QueryBuilders.filteredQuery(QueryBuilders.matchAllQuery(), filter))
+                .execute()
+                .actionGet();
 
         assert(searchResponse.getHits().getHits().length == 3);
 
-        //seems like for me the order is reversed, so lets create an assert that is sort agnostic
         Set<String> resultIds = Sets.newHashSet();
         for (SearchHit hit : searchResponse.getHits()) {
             resultIds.add(hit.getId());
