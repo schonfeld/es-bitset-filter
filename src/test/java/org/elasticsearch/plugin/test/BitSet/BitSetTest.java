@@ -54,7 +54,7 @@ public class BitSetTest {
                 "localhost", 9300));
 
         // index a document
-        final IndexResponse response = tc.prepareIndex("myindex", type).setId(id).setSource(json).execute().actionGet();
+        final IndexResponse response = tc.prepareIndex("myindex", type).setId(id).setSource(json).setRefresh(true).execute().actionGet();
         return response.getId();
     }
 
@@ -80,27 +80,30 @@ public class BitSetTest {
 
     @Test
     public void test_bitset() throws IOException {
+        final String type = "Person";
 
         // do something with elasticsearch
-        final String json = "{\"twitter_id\":\"123\"}";
-        final String type = "Person";
-        final String id = "123";
-        index(id,json, type);
+        List<String> ids = Lists.newArrayList("10", "20", "30");
+        for(String id : ids) {
+            String json = String.format("{\"twitter_id\":\"%s\"}", id);
+            index(id, json, type);
+        }
 
         final Settings settings = ImmutableSettings.settingsBuilder().put("cluster.name", "mycluster").build();
         final TransportClient tc = new TransportClient(settings).addTransportAddress(new InetSocketTransportAddress(
                 "localhost", 9300));
 
         BitSet b = new BitSet();
-        b.set(123);
+        for(String id : ids) {
+            b.set(Integer.valueOf(id));
+        }
         String encode = BaseEncoding.base64().encode(Snappy.compress(b.toByteArray()));
 
-        GetResponse getFields = tc.prepareGet("myindex", "Person", "123").execute().actionGet();
+        GetResponse getFields = tc.prepareGet("myindex", "Person", "10").execute().actionGet();
 
         String source = String.format("{\"query\":{\"filtered\":{\"filter\":{\"bitset\":{\"bitset\":\"%s\"}}}}}", encode);
         SearchResponse searchResponse = tc.prepareSearch("myindex").setTypes("Person").setSource(source).execute().actionGet();
 
-        assert(searchResponse.getHits().getAt(0).getSourceAsString().equals(json));
-
+        assert(searchResponse.getHits().getAt(0).getSourceAsString().equals(""));
     }
 }
