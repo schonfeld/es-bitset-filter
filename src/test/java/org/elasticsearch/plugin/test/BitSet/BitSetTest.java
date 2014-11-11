@@ -1,5 +1,6 @@
 package org.elasticsearch.plugin.test.BitSet;
 
+import com.google.common.collect.Lists;
 import com.google.common.io.BaseEncoding;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
@@ -20,8 +21,11 @@ import org.junit.Before;
 import org.junit.Test;
 import org.xerial.snappy.Snappy;
 
+import java.io.ByteArrayOutputStream;
+import java.io.DataOutputStream;
 import java.io.IOException;
 import java.util.BitSet;
+import java.util.List;
 
 public class BitSetTest {
 
@@ -68,7 +72,7 @@ public class BitSetTest {
 
     private void createIndex() {
         try {
-            this.client.admin().indices().prepareCreate("myindex").execute().actionGet();
+            this.client.admin().indices().prepareCreate("myindex").setSettings(ImmutableSettings.settingsBuilder().put("number_of_shards", 3).put("number_of_replicas", "0")).execute().actionGet();
         } catch (final IndexAlreadyExistsException e) {
             // index already exists => we ignore this exception
         }
