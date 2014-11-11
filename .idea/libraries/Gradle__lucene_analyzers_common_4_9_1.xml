@@ -1,0 +1,11 @@
+<component name="libraryTable">
+  <library name="Gradle: lucene-analyzers-common-4.9.1">
+    <CLASSES>
+      <root url="jar://$USER_HOME$/.gradle/caches/modules-2/files-2.1/org.apache.lucene/lucene-analyzers-common/4.9.1/fca03794541eaa134b468bb19b0677d57be5530c/lucene-analyzers-common-4.9.1.jar!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES>
+      <root url="jar://$USER_HOME$/.gradle/caches/modules-2/files-2.1/org.apache.lucene/lucene-analyzers-common/4.9.1/a430b6fcff7988748a523c840828979554116570/lucene-analyzers-common-4.9.1-sources.jar!/" />
+    </SOURCES>
+  </library>
+</component>

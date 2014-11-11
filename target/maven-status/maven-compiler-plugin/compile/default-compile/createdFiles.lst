@@ -1,0 +1,4 @@
+org/elasticsearch/plugin/BitsetFilter/PluginBitsetFilterParser.class
+org/elasticsearch/plugin/BitsetFilter/PluginBitsetFilterBuilder.class
+org/elasticsearch/plugin/BitsetFilter/PluginBitsetLuceneFilter.class
+org/elasticsearch/plugin/BitsetFilter/BitsetFilterPlugin.class
