@@ -104,6 +104,9 @@ public class BitSetTest {
         String source = String.format("{\"query\":{\"filtered\":{\"filter\":{\"bitset\":{\"bitset\":\"%s\"}}}}}", encode);
         SearchResponse searchResponse = tc.prepareSearch("myindex").setTypes("Person").setSource(source).execute().actionGet();
 
-        assert(searchResponse.getHits().getAt(0).getSourceAsString().equals(""));
+        assert(searchResponse.getHits().getHits().length == 3);
+        assert(searchResponse.getHits().getAt(0).getId().equals("10"));
+        assert(searchResponse.getHits().getAt(1).getId().equals("20"));
+        assert(searchResponse.getHits().getAt(2).getId().equals("30"));
     }
 }
