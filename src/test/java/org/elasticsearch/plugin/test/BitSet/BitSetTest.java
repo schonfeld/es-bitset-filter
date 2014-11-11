@@ -91,10 +91,12 @@ public class BitSetTest {
         b.set(123);
         String encode = BaseEncoding.base64().encode(Snappy.compress(b.toByteArray()));
 
+        GetResponse getFields = tc.prepareGet("myindex", "Person", "123").execute().actionGet();
+
         String source = String.format("{\"query\":{\"filtered\":{\"filter\":{\"bitset\":{\"bitset\":\"%s\"}}}}}", encode);
         SearchResponse searchResponse = tc.prepareSearch("myindex").setTypes("Person").setSource(source).execute().actionGet();
 
-        System.out.print(searchResponse.getHits().getAt(0).getSourceAsString());
+        assert(searchResponse.getHits().getAt(0).getSourceAsString().equals(json));
 
     }
 }

@@ -61,7 +61,7 @@ public class PluginBitsetFilterParser implements FilterParser {
             throw new QueryParsingException(parseContext.index(), "Empty bitset given.");
         }
 
-        List<String> types = Lists.newArrayList("people");
+        List<String> types = Lists.newArrayList("Person");
         List<String> ids = Lists.newArrayList(bitSet.toString().replace("{", "").replace("}", "").split(", "));
 
         TermsFilter filter = new TermsFilter(UidFieldMapper.NAME, Uid.createTypeUids(types, ids));
