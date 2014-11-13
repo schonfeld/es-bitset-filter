@@ -9,12 +9,18 @@ import java.io.IOException;
 public class PluginBloomFilterBuilder extends BaseFilterBuilder {
     private String lookupFieldName;
     private String lookupId;
-    private BloomFilter bloomFilter;
+    private byte[] serializedBloomFilter;
 
     public PluginBloomFilterBuilder(String lookupId, String lookupFieldName, BloomFilter bloomFilter) {
         this.lookupId = lookupId;
         this.lookupFieldName = lookupFieldName;
-        this.bloomFilter = bloomFilter;
+        this.serializedBloomFilter = BloomFilter.serialize(bloomFilter);
+    }
+
+    public PluginBloomFilterBuilder(String lookupId, String lookupFieldName, byte[] serializedBloomFilter) {
+        this.lookupId = lookupId;
+        this.lookupFieldName = lookupFieldName;
+        this.serializedBloomFilter = serializedBloomFilter;
     }
 
     @Override
@@ -22,7 +28,7 @@ public class PluginBloomFilterBuilder extends BaseFilterBuilder {
         builder.startObject(PluginBloomFilterParser.NAME);
         builder.field("field", this.lookupFieldName);
         builder.field("id", this.lookupId);
-        builder.field("bf", BloomFilter.serialize(bloomFilter));
+        builder.field("bf", serializedBloomFilter);
         builder.endObject();
     }
 }
