@@ -32,8 +32,8 @@ public class PluginBitsetFilterParser implements FilterParser {
         XContentParser.Token token;
 
         String currentFieldName = null;
-        String lookupIndex = null;
-        String lookupType = null;
+
+        String lookupFieldName = null;
         String lookupId = null;
         byte[] bloomFilterBytes = null;
 
@@ -41,10 +41,8 @@ public class PluginBitsetFilterParser implements FilterParser {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token.isValue()) {
-                if ("index".equals(currentFieldName)) {
-                    lookupIndex = parser.text();
-                } else if ("type".equals(currentFieldName)) {
-                    lookupType = parser.text();
+                if ("field".equals(currentFieldName)) {
+                    lookupFieldName = parser.text();
                 } else if ("id".equals(currentFieldName)) {
                     lookupId = parser.text();
                 } else if ("bf".equals(currentFieldName)) {
@@ -55,11 +53,8 @@ public class PluginBitsetFilterParser implements FilterParser {
             }
         }
 
-        if(null == lookupIndex) {
-            throw new QueryParsingException(parseContext.index(), "No lookup index was given");
-        }
-        else if(null == lookupType) {
-            throw new QueryParsingException(parseContext.index(), "No lookup type was given");
+        if(null == lookupFieldName) {
+            throw new QueryParsingException(parseContext.index(), "No lookup field name was given");
         }
         else if(null == lookupId) {
             throw new QueryParsingException(parseContext.index(), "No lookup id was given");
@@ -73,7 +68,7 @@ public class PluginBitsetFilterParser implements FilterParser {
             throw new QueryParsingException(parseContext.index(), "Couldn't deserialize bloom filter");
         }
 
-        return new UnfollowedFilter(lookupId, bloomFilter);
+        return new UnfollowedFilter(lookupFieldName, lookupId, bloomFilter);
     }
 
 }
