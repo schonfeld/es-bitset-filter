@@ -3,7 +3,6 @@ package org.elasticsearch.plugin.test.BloomFilter;
 import com.clearspring.analytics.stream.membership.BloomFilter;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
-import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;

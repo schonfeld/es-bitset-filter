@@ -1,2 +1,2 @@
-rootProject.name = 'ElasticsearchBitsetFilter'
+rootProject.name = 'ElasticsearchBloomFilter'
 
