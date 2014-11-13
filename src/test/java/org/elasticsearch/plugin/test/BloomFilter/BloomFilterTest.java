@@ -1,9 +1,8 @@
-package org.elasticsearch.plugin.test.BitSet;
+package org.elasticsearch.plugin.test.BloomFilter;
 
 import com.clearspring.analytics.stream.membership.BloomFilter;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
-import com.google.common.io.BaseEncoding;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
@@ -19,22 +18,18 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeBuilder;
-import org.elasticsearch.plugin.BitsetFilter.PluginBitsetFilterBuilder;
+import org.elasticsearch.plugin.BloomFilter.PluginBloomFilterBuilder;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.search.SearchHit;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
-import org.xerial.snappy.Snappy;
 
-import java.io.ByteArrayOutputStream;
-import java.io.DataOutputStream;
 import java.io.IOException;
 import java.util.Map;
-import java.util.Random;
 import java.util.Set;
 
-public class BitSetTest {
+public class BloomFilterTest {
 
     private static final String INDEX = "myindex";
     private static final String TYPE = "Person";
@@ -111,25 +106,13 @@ public class BitSetTest {
                                     .put("number_of_replicas", "0"))
                     .execute()
                     .actionGet();
-
-            XContentBuilder mapping = XContentFactory.jsonBuilder().startObject()
-                    .startObject("properties")
-                        .startObject("followers_bitmap").field("type", "binary").endObject()
-                    .endObject();
-
-            PutMappingRequest putMappingRequest = new PutMappingRequest(INDEX);
-            putMappingRequest.type(TYPE);
-            putMappingRequest.source(mapping);
-            this.client.admin().indices().putMapping(putMappingRequest);
         } catch (final IndexAlreadyExistsException e) {
             // index already exists => we ignore this exception
-        } catch (IOException e) {
-            e.printStackTrace();
         }
     }
 
     @Test
-    public void test_bitset() throws IOException {
+    public void test_bloomfilter() throws IOException {
         // do something with elasticsearch
         Set<String> ids = Sets.newHashSet("10", "20", "30");
         for(String id : ids) {
@@ -152,7 +135,7 @@ public class BitSetTest {
         bf.add("10");
         bf.add("20");
 
-        PluginBitsetFilterBuilder filter = new PluginBitsetFilterBuilder("master", "following_id", bf);
+        PluginBloomFilterBuilder filter = new PluginBloomFilterBuilder("master", "following_id", bf);
         SearchResponse searchResponse = tc.prepareSearch(INDEX)
                 .setTypes(TYPE)
                 .setQuery(QueryBuilders.filteredQuery(QueryBuilders.matchAllQuery(), filter))

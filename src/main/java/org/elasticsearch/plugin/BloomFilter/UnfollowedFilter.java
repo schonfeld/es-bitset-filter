@@ -1,4 +1,4 @@
-package org.elasticsearch.plugin.BitsetFilter;
+package org.elasticsearch.plugin.BloomFilter;
 
 import com.clearspring.analytics.stream.membership.BloomFilter;
 import org.apache.lucene.document.Document;

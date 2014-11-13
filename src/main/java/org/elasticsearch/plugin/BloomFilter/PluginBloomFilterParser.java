@@ -1,8 +1,7 @@
-package org.elasticsearch.plugin.BitsetFilter;
+package org.elasticsearch.plugin.BloomFilter;
 
 import com.clearspring.analytics.stream.membership.BloomFilter;
 import org.apache.lucene.search.Filter;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -12,12 +11,12 @@ import org.elasticsearch.index.query.QueryParsingException;
 
 import java.io.IOException;
 
-public class PluginBitsetFilterParser implements FilterParser {
-    public static final String NAME = "bitset";
+public class PluginBloomFilterParser implements FilterParser {
+    public static final String NAME = "bloom";
     private Client client;
 
     @Inject
-    public PluginBitsetFilterParser(Client client) {
+    public PluginBloomFilterParser(Client client) {
         this.client = client;
     }
 
@@ -48,7 +47,7 @@ public class PluginBitsetFilterParser implements FilterParser {
                 } else if ("bf".equals(currentFieldName)) {
                     bloomFilterBytes = parser.binaryValue();
                 } else {
-                    throw new QueryParsingException(parseContext.index(), "[bitset] filter does not support [" + currentFieldName + "]");
+                    throw new QueryParsingException(parseContext.index(), "[bloom] filter does not support [" + currentFieldName + "]");
                 }
             }
         }
