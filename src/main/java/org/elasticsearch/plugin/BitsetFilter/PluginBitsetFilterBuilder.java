@@ -1,5 +1,8 @@
 package org.elasticsearch.plugin.BitsetFilter;
 
+import com.clearspring.analytics.stream.membership.BloomFilter;
+import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.BaseFilterBuilder;
 
@@ -9,13 +12,13 @@ public class PluginBitsetFilterBuilder extends BaseFilterBuilder {
     private String lookupIndex;
     private String lookupType;
     private String lookupId;
-    private String bloomFilterBase64;
+    private BloomFilter bloomFilter;
 
-    public PluginBitsetFilterBuilder(String lookupIndex, String lookupType, String lookupId, String bloomFilterBase64) {
+    public PluginBitsetFilterBuilder(String lookupIndex, String lookupType, String lookupId, BloomFilter bloomFilter) {
         this.lookupIndex = lookupIndex;
         this.lookupType = lookupType;
         this.lookupId = lookupId;
-        this.bloomFilterBase64 = bloomFilterBase64;
+        this.bloomFilter = bloomFilter;
     }
 
     @Override
@@ -24,7 +27,7 @@ public class PluginBitsetFilterBuilder extends BaseFilterBuilder {
         builder.field("index", this.lookupIndex);
         builder.field("type", this.lookupType);
         builder.field("id", this.lookupId);
-        builder.field("bf", this.bloomFilterBase64);
+        builder.field("bf", BloomFilter.serialize(bloomFilter));
         builder.endObject();
     }
 }

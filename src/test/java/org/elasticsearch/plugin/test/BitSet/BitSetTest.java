@@ -1,10 +1,8 @@
 package org.elasticsearch.plugin.test.BitSet;
 
-import com.google.common.base.Charsets;
+import com.clearspring.analytics.stream.membership.BloomFilter;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
-import com.google.common.hash.BloomFilter;
-import com.google.common.hash.Funnels;
 import com.google.common.io.BaseEncoding;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.index.IndexResponse;
@@ -27,13 +25,13 @@ import org.elasticsearch.search.SearchHit;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
-import org.roaringbitmap.buffer.MutableRoaringBitmap;
 import org.xerial.snappy.Snappy;
 
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.util.Map;
+import java.util.Random;
 import java.util.Set;
 
 public class BitSetTest {
@@ -145,30 +143,16 @@ public class BitSetTest {
         final TransportClient tc = new TransportClient(settings).addTransportAddress(new InetSocketTransportAddress(
                 "localhost", 9300));
 
-        MutableRoaringBitmap b = MutableRoaringBitmap.bitmapOf();
-        for(String id : ids) {
-            b.add(Integer.valueOf(id));
-        }
-
-        ByteArrayOutputStream bos = new ByteArrayOutputStream();
-        DataOutputStream dos = new DataOutputStream(bos);
-        b.serialize(dos);
-        dos.close();
-
         Map<String,Object> data = Maps.newHashMap();
         data.put("twitter_id", "master");
         index("master", data);
 
-        BloomFilter<String> bf = BloomFilter.create(Funnels.stringFunnel(Charsets.UTF_8), 10);
-        bf.put("10");
-        bf.put("20");
 
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        bf.writeTo(baos);
+        BloomFilter bf = new BloomFilter(10, 3.0);
+        bf.add("10");
+        bf.add("20");
 
-        String bf64 = BaseEncoding.base64().encode(baos.toByteArray());
-
-        PluginBitsetFilterBuilder filter = new PluginBitsetFilterBuilder(INDEX, TYPE, "master", bf64);
+        PluginBitsetFilterBuilder filter = new PluginBitsetFilterBuilder(INDEX, TYPE, "master", bf);
         SearchResponse searchResponse = tc.prepareSearch(INDEX)
                 .setTypes(TYPE)
                 .setQuery(QueryBuilders.filteredQuery(QueryBuilders.matchAllQuery(), filter))

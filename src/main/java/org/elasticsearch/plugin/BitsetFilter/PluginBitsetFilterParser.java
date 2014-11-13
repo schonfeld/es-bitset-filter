@@ -1,24 +1,16 @@
 package org.elasticsearch.plugin.BitsetFilter;
 
-import com.google.common.base.Charsets;
-import com.google.common.hash.BloomFilter;
-import com.google.common.hash.Funnels;
-import com.google.common.io.BaseEncoding;
+import com.clearspring.analytics.stream.membership.BloomFilter;
 import org.apache.lucene.search.Filter;
-import org.elasticsearch.action.get.GetRequest;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.FilterParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryParsingException;
-import org.roaringbitmap.buffer.ImmutableRoaringBitmap;
-import org.xerial.snappy.Snappy;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.util.Map;
 
 public class PluginBitsetFilterParser implements FilterParser {
     public static final String NAME = "bitset";
@@ -43,7 +35,7 @@ public class PluginBitsetFilterParser implements FilterParser {
         String lookupIndex = null;
         String lookupType = null;
         String lookupId = null;
-        String bloomFilterBase64 = null;
+        byte[] bloomFilterBytes = null;
 
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -56,7 +48,7 @@ public class PluginBitsetFilterParser implements FilterParser {
                 } else if ("id".equals(currentFieldName)) {
                     lookupId = parser.text();
                 } else if ("bf".equals(currentFieldName)) {
-                    bloomFilterBase64 = parser.text();
+                    bloomFilterBytes = parser.binaryValue();
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[bitset] filter does not support [" + currentFieldName + "]");
                 }
@@ -72,36 +64,16 @@ public class PluginBitsetFilterParser implements FilterParser {
         else if(null == lookupId) {
             throw new QueryParsingException(parseContext.index(), "No lookup id was given");
         }
-        else if(null == bloomFilterBase64) {
-            throw new QueryParsingException(parseContext.index(), "No lookup field name was given");
+        else if(null == bloomFilterBytes) {
+            throw new QueryParsingException(parseContext.index(), "No bloom filter was given");
         }
 
-        byte[] decoded = BaseEncoding.base64().decode(bloomFilterBase64);
-        ByteArrayInputStream byteArrayInputStream = new ByteArrayInputStream(decoded);
+        BloomFilter bloomFilter = BloomFilter.deserialize(bloomFilterBytes);
+        if (null == bloomFilter) {
+            throw new QueryParsingException(parseContext.index(), "Couldn't deserialize bloom filter");
+        }
 
-        BloomFilter<CharSequence> bf = BloomFilter.readFrom(byteArrayInputStream, Funnels.stringFunnel(Charsets.UTF_8));
-
-        return new UnfollowedFilter(lookupId, bf);
+        return new UnfollowedFilter(lookupId, bloomFilter);
     }
 
-    private ImmutableRoaringBitmap getFollowersBitmap(String index, String type, String id, String fieldName) {
-        GetRequest getRequest = new GetRequest(index, type, id);
-        Map<String, Object> bitmapFieldSource = client.get(getRequest)
-                .actionGet()
-                .getSource();
-
-        if(bitmapFieldSource.isEmpty() || !bitmapFieldSource.containsKey(fieldName)) {
-            return null;
-        }
-
-        try {
-            ByteBuffer bytesBuffer = ByteBuffer.wrap(
-                    Snappy.uncompress((byte[]) bitmapFieldSource.get(fieldName)));
-            ImmutableRoaringBitmap followersBitmap = new ImmutableRoaringBitmap(bytesBuffer);
-
-            return followersBitmap;
-        } catch (Exception e) {
-            return null;
-        }
-    }
 }
