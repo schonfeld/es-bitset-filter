@@ -1,7 +1,11 @@
 package org.elasticsearch.plugin.test.BitSet;
 
+import com.google.common.base.Charsets;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
+import com.google.common.hash.BloomFilter;
+import com.google.common.hash.Funnels;
+import com.google.common.io.BaseEncoding;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
@@ -133,6 +137,7 @@ public class BitSetTest {
         for(String id : ids) {
             Map data = Maps.newHashMap();
             data.put("twitter_id", id);
+            data.put("following_id", "master");
             index(id, data);
         }
 
@@ -152,23 +157,32 @@ public class BitSetTest {
 
         Map<String,Object> data = Maps.newHashMap();
         data.put("twitter_id", "master");
-        data.put("followers_bitmap", Snappy.compress(bos.toByteArray()));
         index("master", data);
 
-        PluginBitsetFilterBuilder filter = new PluginBitsetFilterBuilder(INDEX, TYPE, "master", "followers_bitmap");
+        BloomFilter<String> bf = BloomFilter.create(Funnels.stringFunnel(Charsets.UTF_8), 10);
+        bf.put("10");
+        bf.put("20");
+
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        bf.writeTo(baos);
+
+        String bf64 = BaseEncoding.base64().encode(baos.toByteArray());
+
+        PluginBitsetFilterBuilder filter = new PluginBitsetFilterBuilder(INDEX, TYPE, "master", bf64);
         SearchResponse searchResponse = tc.prepareSearch(INDEX)
                 .setTypes(TYPE)
                 .setQuery(QueryBuilders.filteredQuery(QueryBuilders.matchAllQuery(), filter))
                 .execute()
                 .actionGet();
 
-        assert(searchResponse.getHits().getHits().length == 3);
+        Set<String> expected = Sets.newHashSet("30");
+        assert(searchResponse.getHits().getHits().length == expected.size());
 
         Set<String> resultIds = Sets.newHashSet();
         for (SearchHit hit : searchResponse.getHits()) {
             resultIds.add(hit.getId());
         }
 
-        assert(ids.equals(resultIds));
+        assert(expected.equals(resultIds));
     }
 }

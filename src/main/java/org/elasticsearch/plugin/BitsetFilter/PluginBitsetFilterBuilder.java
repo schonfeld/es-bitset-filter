@@ -4,19 +4,18 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.BaseFilterBuilder;
 
 import java.io.IOException;
-import java.util.BitSet;
 
 public class PluginBitsetFilterBuilder extends BaseFilterBuilder {
     private String lookupIndex;
     private String lookupType;
     private String lookupId;
-    private String lookupFieldName;
+    private String bloomFilterBase64;
 
-    public PluginBitsetFilterBuilder(String lookupIndex, String lookupType, String lookupId, String lookupFieldName) {
+    public PluginBitsetFilterBuilder(String lookupIndex, String lookupType, String lookupId, String bloomFilterBase64) {
         this.lookupIndex = lookupIndex;
         this.lookupType = lookupType;
         this.lookupId = lookupId;
-        this.lookupFieldName = lookupFieldName;
+        this.bloomFilterBase64 = bloomFilterBase64;
     }
 
     @Override
@@ -25,7 +24,7 @@ public class PluginBitsetFilterBuilder extends BaseFilterBuilder {
         builder.field("index", this.lookupIndex);
         builder.field("type", this.lookupType);
         builder.field("id", this.lookupId);
-        builder.field("field", this.lookupFieldName);
+        builder.field("bf", this.bloomFilterBase64);
         builder.endObject();
     }
 }
