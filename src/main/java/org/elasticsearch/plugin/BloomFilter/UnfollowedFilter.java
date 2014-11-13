@@ -1,6 +1,7 @@
 package org.elasticsearch.plugin.BloomFilter;
 
 import com.clearspring.analytics.stream.membership.BloomFilter;
+import com.google.common.collect.Sets;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.AtomicReader;
 import org.apache.lucene.index.AtomicReaderContext;
@@ -42,7 +43,7 @@ public class UnfollowedFilter extends Filter {
         AtomicReader reader = context.reader();
 
         while ((docId = iterator.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
-            Document document = reader.document(docId);
+            Document document = reader.document(docId, Sets.newHashSet("_uid"));
             Uid uid = Uid.createUid(document.getField("_uid").stringValue());
             if (!bf.isPresent(uid.id())) {
                 result.set(docId);
