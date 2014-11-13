@@ -152,7 +152,7 @@ public class BitSetTest {
         bf.add("10");
         bf.add("20");
 
-        PluginBitsetFilterBuilder filter = new PluginBitsetFilterBuilder(INDEX, TYPE, "master", bf);
+        PluginBitsetFilterBuilder filter = new PluginBitsetFilterBuilder("master", "following_id", bf);
         SearchResponse searchResponse = tc.prepareSearch(INDEX)
                 .setTypes(TYPE)
                 .setQuery(QueryBuilders.filteredQuery(QueryBuilders.matchAllQuery(), filter))
