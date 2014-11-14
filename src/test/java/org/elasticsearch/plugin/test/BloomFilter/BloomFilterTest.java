@@ -1,8 +1,10 @@
 package org.elasticsearch.plugin.test.BloomFilter;
 
-import com.clearspring.analytics.stream.membership.BloomFilter;
+import com.google.common.base.Charsets;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
+import com.google.common.hash.BloomFilter;
+import com.google.common.hash.Funnels;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
@@ -130,9 +132,9 @@ public class BloomFilterTest {
         index("master", data);
 
 
-        BloomFilter bf = new BloomFilter(10, 3.0);
-        bf.add("10");
-        bf.add("20");
+        BloomFilter<CharSequence> bf = BloomFilter.create(Funnels.stringFunnel(Charsets.UTF_8), 5, 0.03);
+        bf.put("10");
+        bf.put("20");
 
         PluginBloomFilterBuilder filter = new PluginBloomFilterBuilder("master", "following_id", bf);
         SearchResponse searchResponse = tc.prepareSearch(INDEX)

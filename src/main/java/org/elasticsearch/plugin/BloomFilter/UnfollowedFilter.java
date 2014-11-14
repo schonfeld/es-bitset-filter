@@ -1,7 +1,7 @@
 package org.elasticsearch.plugin.BloomFilter;
 
-import com.clearspring.analytics.stream.membership.BloomFilter;
 import com.google.common.collect.Sets;
+import com.google.common.hash.BloomFilter;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.AtomicReader;
 import org.apache.lucene.index.AtomicReaderContext;
@@ -19,9 +19,9 @@ import java.io.IOException;
 public class UnfollowedFilter extends Filter {
     private String fieldName;
     private String termId;
-    private BloomFilter bf;
+    private BloomFilter<CharSequence> bf;
 
-    public UnfollowedFilter(String fieldName, String termId, BloomFilter bf) {
+    public UnfollowedFilter(String fieldName, String termId, BloomFilter<CharSequence> bf) {
         this.fieldName = fieldName;
         this.termId = termId;
         this.bf = bf;
@@ -45,7 +45,7 @@ public class UnfollowedFilter extends Filter {
         while ((docId = iterator.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
             Document document = reader.document(docId, Sets.newHashSet("_uid"));
             Uid uid = Uid.createUid(document.getField("_uid").stringValue());
-            if (!bf.isPresent(uid.id())) {
+            if (!bf.mightContain(uid.id())) {
                 result.set(docId);
             }
         }

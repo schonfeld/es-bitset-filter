@@ -1,6 +1,8 @@
 package org.elasticsearch.plugin.BloomFilter;
 
-import com.clearspring.analytics.stream.membership.BloomFilter;
+import com.google.common.base.Charsets;
+import com.google.common.hash.BloomFilter;
+import com.google.common.hash.Funnels;
 import org.apache.lucene.search.Filter;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
@@ -9,6 +11,7 @@ import org.elasticsearch.index.query.FilterParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryParsingException;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 
 public class PluginBloomFilterParser implements FilterParser {
@@ -62,10 +65,9 @@ public class PluginBloomFilterParser implements FilterParser {
             throw new QueryParsingException(parseContext.index(), "No bloom filter was given");
         }
 
-        BloomFilter bloomFilter = BloomFilter.deserialize(bloomFilterBytes);
-        if (null == bloomFilter) {
-            throw new QueryParsingException(parseContext.index(), "Couldn't deserialize bloom filter");
-        }
+        ByteArrayInputStream bais = new ByteArrayInputStream(bloomFilterBytes);
+        BloomFilter<CharSequence> bloomFilter = BloomFilter.readFrom(bais, Funnels.stringFunnel(Charsets.UTF_8));
+        bais.close();
 
         return new UnfollowedFilter(lookupFieldName, lookupId, bloomFilter);
     }
