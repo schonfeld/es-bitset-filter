@@ -1,8 +1,8 @@
-package org.elasticsearch.plugin.test.BitSet;
+package org.elasticsearch.plugin.test.BloomFilter;
 
+import com.clearspring.analytics.stream.membership.BloomFilter;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
-import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
@@ -17,22 +17,18 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeBuilder;
-import org.elasticsearch.plugin.BitsetFilter.PluginBitsetFilterBuilder;
+import org.elasticsearch.plugin.BloomFilter.PluginBloomFilterBuilder;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.search.SearchHit;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
-import org.roaringbitmap.buffer.MutableRoaringBitmap;
-import org.xerial.snappy.Snappy;
 
-import java.io.ByteArrayOutputStream;
-import java.io.DataOutputStream;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Set;
 
-public class BitSetTest {
+public class BloomFilterTest {
 
     private static final String INDEX = "myindex";
     private static final String TYPE = "Person";
@@ -109,30 +105,19 @@ public class BitSetTest {
                                     .put("number_of_replicas", "0"))
                     .execute()
                     .actionGet();
-
-            XContentBuilder mapping = XContentFactory.jsonBuilder().startObject()
-                    .startObject("properties")
-                        .startObject("followers_bitmap").field("type", "binary").endObject()
-                    .endObject();
-
-            PutMappingRequest putMappingRequest = new PutMappingRequest(INDEX);
-            putMappingRequest.type(TYPE);
-            putMappingRequest.source(mapping);
-            this.client.admin().indices().putMapping(putMappingRequest);
         } catch (final IndexAlreadyExistsException e) {
             // index already exists => we ignore this exception
-        } catch (IOException e) {
-            e.printStackTrace();
         }
     }
 
     @Test
-    public void test_bitset() throws IOException {
+    public void test_bloomfilter() throws IOException {
         // do something with elasticsearch
         Set<String> ids = Sets.newHashSet("10", "20", "30");
         for(String id : ids) {
             Map data = Maps.newHashMap();
             data.put("twitter_id", id);
+            data.put("following_id", "master");
             index(id, data);
         }
 
@@ -140,35 +125,30 @@ public class BitSetTest {
         final TransportClient tc = new TransportClient(settings).addTransportAddress(new InetSocketTransportAddress(
                 "localhost", 9300));
 
-        MutableRoaringBitmap b = MutableRoaringBitmap.bitmapOf();
-        for(String id : ids) {
-            b.add(Integer.valueOf(id));
-        }
-
-        ByteArrayOutputStream bos = new ByteArrayOutputStream();
-        DataOutputStream dos = new DataOutputStream(bos);
-        b.serialize(dos);
-        dos.close();
-
         Map<String,Object> data = Maps.newHashMap();
         data.put("twitter_id", "master");
-        data.put("followers_bitmap", Snappy.compress(bos.toByteArray()));
         index("master", data);
 
-        PluginBitsetFilterBuilder filter = new PluginBitsetFilterBuilder(INDEX, TYPE, "master", "followers_bitmap");
+
+        BloomFilter bf = new BloomFilter(10, 3.0);
+        bf.add("10");
+        bf.add("20");
+
+        PluginBloomFilterBuilder filter = new PluginBloomFilterBuilder("master", "following_id", bf);
         SearchResponse searchResponse = tc.prepareSearch(INDEX)
                 .setTypes(TYPE)
                 .setQuery(QueryBuilders.filteredQuery(QueryBuilders.matchAllQuery(), filter))
                 .execute()
                 .actionGet();
 
-        assert(searchResponse.getHits().getHits().length == 3);
+        Set<String> expected = Sets.newHashSet("30");
+        assert(searchResponse.getHits().getHits().length == expected.size());
 
         Set<String> resultIds = Sets.newHashSet();
         for (SearchHit hit : searchResponse.getHits()) {
             resultIds.add(hit.getId());
         }
 
-        assert(ids.equals(resultIds));
+        assert(expected.equals(resultIds));
     }
 }
