@@ -7,57 +7,55 @@ import com.google.common.hash.BloomFilter;
 import com.google.common.hash.Funnels;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.IndexAlreadyExistsException;
-import org.elasticsearch.node.Node;
-import org.elasticsearch.node.NodeBuilder;
 import org.elasticsearch.plugin.BloomFilter.PluginBloomFilterBuilder;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.search.SearchHit;
-import org.junit.After;
-import org.junit.Before;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.Set;
 
-public class BloomFilterTest {
+@ElasticsearchIntegrationTest.ClusterScope(
+        scope = ElasticsearchIntegrationTest.Scope.TEST,
+        numDataNodes = 0,
+        numClientNodes = 0,
+        transportClientRatio = 0.0)
+public class BloomFilterTest extends ElasticsearchIntegrationTest {
 
     private static final String INDEX = "myindex";
     private static final String TYPE = "Person";
 
-    private Node node;
-    private Client client;
+    protected Settings settingsBuilder() {
+        ImmutableSettings.Builder builder = ImmutableSettings.settingsBuilder()
+                .put("cluster.name", "test-cluster")
+                .put("network.publish_host", "localhost")
+                .put("network.bind_host", "localhost")
+                .put("plugins." + PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, true);
 
-    @Before
-    public void before() {
-        createElasticsearchClient();
-        createIndex();
+        return builder.build();
     }
 
-    @After
-    public void after() {
-        this.client.close();
-        this.node.close();
+    protected void startNode(int nodeOrdinal) {
+        Settings settings = settingsBuilder();
+        logger.info("--> start node #{}, settings [{}]", nodeOrdinal, settings);
+        internalCluster().startNode(settings);
+
+        assertNotNull(client().admin().cluster().prepareState().setMasterNodeTimeout("1s").execute().actionGet().getState().nodes().masterNodeId());
     }
 
     /**
      * some productive code
      */
     private String index(final String id, final Map<String,Object> data) {
-        // create Client
-        final Settings settings = ImmutableSettings.settingsBuilder().put("cluster.name", "mycluster").build();
-        final TransportClient tc = new TransportClient(settings).addTransportAddress(new InetSocketTransportAddress(
-                "localhost", 9300));
 
         // turn the data into XContentBuilder
         XContentBuilder builder = null;
@@ -75,7 +73,7 @@ public class BloomFilterTest {
         }
 
         // index a document
-        final IndexResponse response = tc.prepareIndex(INDEX, TYPE)
+        final IndexResponse response = client().prepareIndex(INDEX, TYPE)
                 .setId(id)
                 .setRefresh(true)
                 .setSource(builder)
@@ -85,21 +83,9 @@ public class BloomFilterTest {
         return response.getId();
     }
 
-    private void createElasticsearchClient() {
-        final NodeBuilder nodeBuilder = NodeBuilder.nodeBuilder();
-        final ImmutableSettings.Builder settingsBuilder = nodeBuilder.settings();
-        settingsBuilder.put("network.publish_host", "localhost");
-        settingsBuilder.put("network.bind_host", "localhost");
-        settingsBuilder.put("plugins." + PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, true);
-
-        final Settings settings = settingsBuilder.build();
-        this.node = nodeBuilder.clusterName("mycluster").local(false).data(true).settings(settings).node();
-        this.client = this.node.client();
-    }
-
     private void createIndex() {
         try {
-            this.client.admin().indices()
+            client().admin().indices()
                     .prepareCreate(INDEX)
                     .setSettings(
                             ImmutableSettings.settingsBuilder()
@@ -110,10 +96,17 @@ public class BloomFilterTest {
         } catch (final IndexAlreadyExistsException e) {
             // index already exists => we ignore this exception
         }
+
+        assertTrue(client().admin().indices().prepareExists(INDEX).execute().actionGet().isExists());
     }
 
     @Test
     public void test_bloomfilter() throws IOException {
+        startNode(1);
+        assertEquals(client().admin().cluster().prepareState().execute().actionGet().getState().nodes().size(),1);
+
+        createIndex();
+
         // do something with elasticsearch
         Set<String> ids = Sets.newHashSet("10", "20", "30");
         for(String id : ids) {
@@ -122,10 +115,6 @@ public class BloomFilterTest {
             data.put("following_id", "master");
             index(id, data);
         }
-
-        final Settings settings = ImmutableSettings.settingsBuilder().put("cluster.name", "mycluster").build();
-        final TransportClient tc = new TransportClient(settings).addTransportAddress(new InetSocketTransportAddress(
-                "localhost", 9300));
 
         Map<String,Object> data = Maps.newHashMap();
         data.put("twitter_id", "master");
@@ -137,20 +126,20 @@ public class BloomFilterTest {
         bf.put("20");
 
         PluginBloomFilterBuilder filter = new PluginBloomFilterBuilder("master", "following_id", bf);
-        SearchResponse searchResponse = tc.prepareSearch(INDEX)
+        SearchResponse searchResponse = client().prepareSearch(INDEX)
                 .setTypes(TYPE)
                 .setQuery(QueryBuilders.filteredQuery(QueryBuilders.matchAllQuery(), filter))
                 .execute()
                 .actionGet();
 
         Set<String> expected = Sets.newHashSet("30");
-        assert(searchResponse.getHits().getHits().length == expected.size());
+        assertEquals(searchResponse.getHits().getHits().length, expected.size());
 
         Set<String> resultIds = Sets.newHashSet();
         for (SearchHit hit : searchResponse.getHits()) {
             resultIds.add(hit.getId());
         }
 
-        assert(expected.equals(resultIds));
+        assertEquals(expected,resultIds);
     }
 }
