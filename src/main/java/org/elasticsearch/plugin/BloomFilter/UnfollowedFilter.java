@@ -5,6 +5,8 @@ import com.google.common.hash.BloomFilter;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.AtomicReader;
 import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.queries.TermFilter;
 import org.apache.lucene.queries.TermsFilter;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -29,18 +31,17 @@ public class UnfollowedFilter extends Filter {
 
     @Override
     public DocIdSet getDocIdSet(AtomicReaderContext context, Bits acceptDocs) throws IOException {
-        TermsFilter termsFilter = new TermsFilter(fieldName, BytesRefs.toBytesRef(termId));
+        TermFilter termFilter = new TermFilter(new Term(fieldName, BytesRefs.toBytesRef(termId)));
 
-        FixedBitSet docIdSet = (FixedBitSet) termsFilter.getDocIdSet(context, acceptDocs);
+        DocIdSet docIdSet = termFilter.getDocIdSet(context, acceptDocs);
         if (null == docIdSet) {
             return null;
         }
 
-        FixedBitSet result = new FixedBitSet(docIdSet.cardinality());
-
         DocIdSetIterator iterator = docIdSet.iterator();
         int docId;
         AtomicReader reader = context.reader();
+        FixedBitSet result = new FixedBitSet(reader.maxDoc());
 
         while ((docId = iterator.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
             Document document = reader.document(docId, Sets.newHashSet("_uid"));

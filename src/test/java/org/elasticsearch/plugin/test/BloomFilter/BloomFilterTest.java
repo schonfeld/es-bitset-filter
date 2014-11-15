@@ -121,9 +121,8 @@ public class BloomFilterTest extends ElasticsearchIntegrationTest {
         assertEquals(client().admin().indices().prepareStats(INDEX).execute().actionGet().getPrimaries().getSegments().getCount(),1);
 
         BloomFilter<CharSequence> bf = BloomFilter.create(Funnels.stringFunnel(Charsets.UTF_8), 5, 0.03);
+        bf.put("10");
         bf.put("20");
-        bf.put("30");
-        bf.put("40");
 
         PluginBloomFilterBuilder filter = new PluginBloomFilterBuilder("master", "following_id", bf);
         SearchResponse searchResponse = client().prepareSearch(INDEX)
@@ -156,7 +155,7 @@ public class BloomFilterTest extends ElasticsearchIntegrationTest {
         data.put("twitter_id", "master");
         index("master", data);
 
-        Set<String> ids = Sets.newHashSet("10", "20", "30", "40", "50");
+        Set<String> ids = Sets.newHashSet("10", "20", "30");
         for(String id : ids) {
             data.clear();
             data.put("twitter_id", id);
@@ -164,10 +163,9 @@ public class BloomFilterTest extends ElasticsearchIntegrationTest {
             index(id, data);
         }
 
-        assertEquals(client().admin().indices().prepareStats(INDEX).execute().actionGet().getTotal().docs.getCount(),6 + additionPreExistingDocs);
+        assertEquals(client().admin().indices().prepareStats(INDEX).execute().actionGet().getTotal().docs.getCount(),4 + additionPreExistingDocs);
     }
-
-    @Ignore
+    
     @Test
     public void test_bloomfilter() throws IOException {
         start_one_node_and_index();
