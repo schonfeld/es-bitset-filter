@@ -7,6 +7,7 @@ import com.google.common.hash.BloomFilter;
 import com.google.common.hash.Funnels;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -14,6 +15,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.TermFilterBuilder;
 import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.plugin.BloomFilter.PluginBloomFilterBuilder;
 import org.elasticsearch.plugins.PluginsService;
@@ -124,7 +126,7 @@ public class BloomFilterTest extends ElasticsearchIntegrationTest {
         bf.put("10");
         bf.put("20");
 
-        PluginBloomFilterBuilder filter = new PluginBloomFilterBuilder("master", "following_id", bf);
+        PluginBloomFilterBuilder filter = new PluginBloomFilterBuilder(bf, new TermFilterBuilder("following_id", "master"));
         SearchResponse searchResponse = client().prepareSearch(INDEX)
                 .setTypes(TYPE)
                 .setQuery(QueryBuilders.filteredQuery(QueryBuilders.matchAllQuery(), filter))
@@ -176,12 +178,14 @@ public class BloomFilterTest extends ElasticsearchIntegrationTest {
         bf.put("10");
         bf.put("20");
 
-        PluginBloomFilterBuilder filter = new PluginBloomFilterBuilder("master", "following_id", bf);
-        SearchResponse searchResponse = client().prepareSearch(INDEX)
+        PluginBloomFilterBuilder filter = new PluginBloomFilterBuilder(bf, new TermFilterBuilder("following_id", "master"));
+        SearchRequestBuilder searchRequestBuilder = client().prepareSearch(INDEX)
                 .setTypes(TYPE)
                 .setQuery(QueryBuilders.filteredQuery(QueryBuilders.matchAllQuery(), filter))
-                .execute()
-                .actionGet();
+                .setSize(10)
+                .setFrom(0);
+
+        SearchResponse searchResponse = searchRequestBuilder.execute().actionGet();
 
         Set<String> expected = Sets.newHashSet("30");
         assertEquals(searchResponse.getHits().getHits().length, expected.size());

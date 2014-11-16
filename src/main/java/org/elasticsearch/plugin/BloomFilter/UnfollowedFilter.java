@@ -19,21 +19,17 @@ import org.elasticsearch.index.mapper.Uid;
 import java.io.IOException;
 
 public class UnfollowedFilter extends Filter {
-    private String fieldName;
-    private String termId;
     private BloomFilter<CharSequence> bf;
+    private Filter primaryFilter;
 
-    public UnfollowedFilter(String fieldName, String termId, BloomFilter<CharSequence> bf) {
-        this.fieldName = fieldName;
-        this.termId = termId;
+    public UnfollowedFilter(BloomFilter<CharSequence> bf, Filter primaryFilter) {
         this.bf = bf;
+        this.primaryFilter = primaryFilter;
     }
 
     @Override
     public DocIdSet getDocIdSet(AtomicReaderContext context, Bits acceptDocs) throws IOException {
-        TermFilter termFilter = new TermFilter(new Term(fieldName, BytesRefs.toBytesRef(termId)));
-
-        DocIdSet docIdSet = termFilter.getDocIdSet(context, acceptDocs);
+        DocIdSet docIdSet = primaryFilter.getDocIdSet(context, acceptDocs);
         if (null == docIdSet) {
             return null;
         }
