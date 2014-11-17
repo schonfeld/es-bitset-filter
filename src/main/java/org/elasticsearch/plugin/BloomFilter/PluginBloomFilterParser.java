@@ -3,6 +3,7 @@ package org.elasticsearch.plugin.BloomFilter;
 import com.google.common.base.Charsets;
 import com.google.common.hash.BloomFilter;
 import com.google.common.hash.Funnels;
+import com.google.common.hash.Hashing;
 import org.apache.lucene.search.Filter;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
@@ -13,6 +14,7 @@ import org.elasticsearch.index.query.*;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 
 public class PluginBloomFilterParser implements FilterParser {
     public static final String NAME = "bloom";
@@ -36,6 +38,8 @@ public class PluginBloomFilterParser implements FilterParser {
         String currentFieldName = null;
         byte[] bloomFilterBytes = null;
         Filter primaryFilter = null;
+        boolean cache = true;
+        //String s = Hashing.murmur3_128().hashBytes().toString();
 
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -45,6 +49,8 @@ public class PluginBloomFilterParser implements FilterParser {
             } else if (token.isValue()) {
                 if ("bf".equals(currentFieldName)) {
                     bloomFilterBytes = parser.binaryValue();
+                } else if ("_cache".equals(currentFieldName)) {
+                    cache = parser.booleanValue();
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[bloom] filter does not support [" + currentFieldName + "]");
                 }
@@ -67,9 +73,18 @@ public class PluginBloomFilterParser implements FilterParser {
             throw new QueryParsingException(parseContext.index(), "Couldn't deserialize the given bloom filter string representation");
         }
 
-        Filter f = new UnfollowedFilter(bloomFilter, primaryFilter);
+        Filter filter = new UnfollowedFilter(bloomFilter, primaryFilter);
+        if (cache) {
+            ByteBuffer toHashBytes = ByteBuffer
+                    .allocate(primaryFilter.toString().length() + bloomFilterBytes.length)
+                    .put(primaryFilter.toString().getBytes())
+                    .put(bloomFilterBytes);
 
-        return f;
+            String cacheKey = Hashing.murmur3_128().hashBytes(toHashBytes.array()).toString();
+            filter = parseContext.cacheFilter(filter, new CacheKeyFilter.Key(cacheKey));
+        }
+
+        return filter;
     }
 
 }

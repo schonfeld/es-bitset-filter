@@ -5,6 +5,7 @@ import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import com.google.common.hash.BloomFilter;
 import com.google.common.hash.Funnels;
+import com.google.common.hash.Hashing;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequestBuilder;
@@ -24,6 +25,7 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Ignore;
 import org.junit.Test;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Set;
@@ -105,8 +107,19 @@ public class BloomFilterTest extends ElasticsearchIntegrationTest {
         assertEquals(client().admin().indices().prepareStats(INDEX).execute().actionGet().getTotalShards(),shards);
     }
 
+    @Test @Ignore
+    public void test_sha256_encoding_big_bloom_filter() throws IOException {
+        BloomFilter<Long> longBloomFilter = BloomFilter.create(Funnels.longFunnel(), 10000000, 0.03);
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        longBloomFilter.writeTo(baos);
+
+        long now = System.currentTimeMillis();
+        String s = Hashing.murmur3_128().hashBytes(baos.toByteArray()).toString();
+        logger.info("GoodFastHash(64) Took {}ms for size {}", System.currentTimeMillis() - now, baos.size());
+
+    }
     //must run this test with -da:org.apache.lucene.util.FixedBitSet
-    @Test
+    @Test @Ignore
     public void test_doc_having_greater_max_id_than_results() throws IOException {
         start_one_node_and_index();
 
